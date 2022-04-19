@@ -6,17 +6,20 @@ const Item = require('./models/item');
 
 
 class Seeker {
-    constructor(url) {
+    constructor(url, userId) {
         this.url = url;
-        this.latest = [];
+        this.latest = null;
+
+        this.userId = userId;
 
 
-        this.initial = true;
-
+        // Data subject to notify changes
         this.data$ = new rxjs.BehaviorSubject([]);
 
+        // Request latest items
         this.getLatestItems();
 
+        // Start interval schedule
         this.scheduleRef = this.activateSchedule();
 
         console.log("Now seeking on " + this.url);
@@ -27,87 +30,59 @@ class Seeker {
         console.log("Activating Schedule!");
         return setInterval(() => {
             this.getLatestItems();
-            // }, 600000);
-        }, 300000);
+        }, 10000);
+        // }, 300000);
     }
 
-    // getNewItems() {
-
-    //     // Get all items available in page
-    //     let pageItems = this.getPageItems();
-
-    //     // If no pre-loaded, add all as latest
-    //     if (!this.latest || this.latest.length === 0) {
-    //         this.data$.next(pageItems);
-
-    //         return pageItems;
-    //     }
-
-    //     // If there are pre-loaded items
-    //     // Check for new items
-    //     let first_old_index = pageItems.findIndex(item => item.id === this.latest[0].id);
-
-    //     let newItems = pageItems.subarray(0, first_old_index);
-    //     // If there are new items
-    //     if (newItems.length === 0)
-    //         return [];
-
-    //     // call next and re assign to latest property
-    //     this.data$.next(newItems);
-
-    //     return newItems;
-    // }
 
     getLatestItems() {
-        // Request items
-
-
+        // Request html from url
         axios
             .get(this.url)
+            // On data
             .then(res => {
 
-                // Organize into item objects
+                // Parse to HTML
                 let html = HTMLParser.parse(res.data);
+                // Get individual ads
                 let listingItems = html.querySelectorAll('.regular-ad');
 
+                // Items to item objects
                 let myItems = []
                 for (let item of listingItems) {
                     myItems.push(this.getItem(item));
                 }
 
                 // if no pre-loaded items
-                if (!this.latest || this.latest.length === 0) {
+                if (this.latest == null || this.latest.length === 0) {
                     // load all items found
-                    console.log("No pre-loads. Adding now.")
+                    console.log("No pre-loads on this seeker. Loading now...")
                     this.latest = myItems;
 
-                    // If initial value
-                    // if (this.initial) {
-                    //     // myItems['initial'] = true;
-                    //     this.initial = false;
-                    // }
-
-                    this.data$.next(myItems);
+                    // send to observable
+                    this.data$.next((myItems.length > 5) ? myItems.slice(0, 5) : myItems);
                     return;
                 }
 
                 // if pre-loaded items
                 //      find new ones and load items
                 // Check for new items
-                console.log("Getting latest...")
-                let first_old_index = myItems.findIndex(item => item.id === this.latest[0].id);
+                console.log("Getting latest items...")
+                let latest_item_index = myItems.findIndex(item => item.id === this.latest[0].id);
 
-                let newItems = myItems.slice(0, first_old_index);
+                let newItems = myItems.slice(0, latest_item_index);
                 // If there are no new items
-                if (newItems.length === 0)
+                if (newItems.length === 0) {
+                    // console.log("Seeker found no new items for " + )
                     return;
+                }
 
                 // call next and re assign to latest property
                 this.data$.next(newItems);
                 this.latest = newItems;
             })
             .catch(error => {
-                console.error("ERROR=======================")
+                console.error("=======================[ERROR]=======================")
                 console.error(error)
                 return [];
             })

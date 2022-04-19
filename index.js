@@ -1,6 +1,8 @@
 const { Telegraf } = require('telegraf')
 const Seeker = require('./seeker');
 const User = require('./models/user');
+const getUserServices = require('./user-services');
+
 
 const users = [];
 
@@ -31,33 +33,48 @@ const bot = new Telegraf(process.env.BOT_TOKEN)
 
 // }
 bot
-bot.start((ctx) => ctx.reply('Welcome'))
+bot.start((ctx) => {
+    let user = getUserServices().newUser(ctx.update.message.from.username, ctx.update.message.from.id, ctx.update.message.from.first_name);
+
+    ctx.reply(`Hello ${user.first_name},\nWelcome to Deal Finder. You can subscribe to a search 
+    results page on Kijiji, (and soon facebook market) by making a search on these websites, configuring
+     search terms and filters, and then using the search URL to subscribe and get notified of any new item(s)
+      for that search result.`)
+})
+
+
+
 bot.command('subscribe', ctx => {
+    // Get user id
     let userId = ctx.update.message.from.id;
-    let userIndex = users.findIndex(user => { user.id === userId });
-    if(userIndex === -1) {
-        userIndex = users.length;
-        users.push(new User(ctx.update.message.from.username, userId, ctx.update.message.from.first_name))
+    // Create/get user
+    let user = getUserServices().newUser(ctx.update.message.from.username, userId, ctx.update.message.from.first_name);
+
+    // Extract subscribing URL
+    let url = ctx.update.message.text.substring(10).trim();
+    // New seeker
+    const seeker = user.newSeeker(url);
+
+    // If seeker exists
+    if (seeker === null) {
+        ctx.reply("A seeker with the provided url is already active.")
+        return;
     }
 
-    let url = ctx.update.message.text.substring(10).trim();
-
-    const seeker = users[userIndex].newSeeker(url);
-
+    // Subscribe to seeker's updates
     seeker.data$.subscribe((latest) => {
         let i = 0;
-        for(let item of latest) {
+        for (let item of latest) {
             ctx.reply(`
-            ${item.title} \n ${item.desc} \n ${item.price} \n\n ${item.url}
+            **${item.title}** \n \`${item.desc}\` \n\n ${item.price} \n\n Visit: ${item.url}
             `);
-            if(seeker.initial && i++ > 5) {
-                seeker.initial = false;
-                break;
-            }
         }
     })
 })
-bot.help((ctx) => ctx.reply('Send me a sticker'))
-bot.on('sticker', (ctx) => ctx.reply('👍'))
-bot.hears('hi', (ctx) => ctx.reply('Hey there'))
+
+bot.help((ctx) => ctx.reply('Use /subscribe <url> to subscribe to a search result.'))
+// bot.on('sticker', (ctx) => ctx.reply('👍'))
+// bot.hears('hi', (ctx) => ctx.reply('Hey there'))
+
+// Start the bot
 bot.launch()

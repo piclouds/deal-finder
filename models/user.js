@@ -1,17 +1,21 @@
 const Seeker = require("../seeker");
 
 class User {
-    constructor(username, id, name) {
+    constructor(username, id, first_name) {
         this.username = username;
         this.id = id;
-        this.name = name;
+        this.first_name = first_name;
         this.seekers = [];
 
         console.log("New user added: " + this.toString())
     }
 
     newSeeker(url) {
-        const seeker = new Seeker(url);
+        const existingSeekerId = this.seekers.findIndex(seeker => seeker.url === url);
+        if(existingSeekerId === -1) {
+            return null;
+        }
+        const seeker = new Seeker(url, this.id);
         this.seekers.push(seeker);
         return seeker;
     }
